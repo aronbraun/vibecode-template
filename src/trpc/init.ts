@@ -7,7 +7,17 @@ import { connectToDatabase } from "@/server/db";
 // Runs once per request. Every procedure can rely on the database being connected.
 // When you add auth, derive the user from the headers here and put it on the context.
 export async function createTRPCContext(opts: { headers: Headers }) {
-  await connectToDatabase();
+  try {
+    await connectToDatabase();
+  } catch (error) {
+    // connectToDatabase already logged the real cause; the user gets a safe message.
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message:
+        "The database is not available right now. Please try again later.",
+      cause: error,
+    });
+  }
   return { headers: opts.headers };
 }
 
