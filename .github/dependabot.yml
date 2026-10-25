@@ -9,6 +9,13 @@ updates:
     groups:
       all-dependencies:
         patterns: ["*"]
+    ignore:
+      # TypeScript 7 (the native rewrite) is not stable yet: stay on 6.x.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # @types/node must match the Node.js version the host runs, not the newest.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -100,6 +100,14 @@ Create a project at [railway.com/new](https://railway.com/new) and deploy from
 your repo — Railway detects Bun and runs the standard scripts. Add a MongoDB
 service (or use Atlas) and set `MONGODB_URI`.
 
+## Known temporary pin
+
+`package.json` pins the transitive `bson` package to `7.2.0` (via `overrides`):
+newer bson versions crash on Bun ≤ 1.3.14 when imported
+([oven-sh/bun#32501](https://github.com/oven-sh/bun/issues/32501), fixed in
+Bun 1.4). Vercel's build image still uses Bun 1.3.14, so keep the pin until a
+Vercel build log shows Bun 1.4 or newer.
+
 ## Project structure
 
 ```

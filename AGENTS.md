@@ -77,6 +77,13 @@ vibecoding: describing what they want in plain language. Because of that:
 - CI and deploys install with `bun install --frozen-lockfile`.
   `.github/workflows/ci.yml` runs the completion checklist on every push;
   `.github/dependabot.yml` opens one grouped dependency-update PR a week.
+- **Temporary pin — keep it:** `package.json` has `"overrides": { "bson": "7.2.0" }`
+  because bson ≥ 7.3 crashes on Bun ≤ 1.3.14 at import time
+  (`node:v8 isBuildingSnapshot is not yet implemented`, fixed in Bun 1.4).
+  Vercel's build image still ships Bun 1.3.14, so removing the pin breaks the
+  Vercel build even though newer local Bun works. Remove it only once Vercel
+  builds with Bun ≥ 1.4 (check the "bun install v..." line in a build log), and
+  confirm with `bun -e "await import('mongoose')"`.
 
 ## Project structure — where things go
 
