@@ -67,9 +67,8 @@ vibecoding: describing what they want in plain language. Because of that:
   `bun run dev|build|start|lint|typecheck|fmt`. `bun.lock` is committed — keep it.
 - The scripts use `bun --bun next ...` so Next.js executes on the Bun runtime
   locally and on any host that runs the package.json scripts (Railway, Docker,
-  a VPS). Vercel runs functions on Node.js by default — fine, the code must
-  stay portable anyway; a project can opt into Vercel's Bun runtime (beta)
-  later by adding a `vercel.json` with `{ "bunVersion": "1.x" }`. Don't add
+  a VPS). `vercel.json` opts into Vercel's Bun runtime, so Bun runs there too.
+  The code must still stay portable to Node.js hosts. Don't add any other
   platform config files to this template.
 - **Never use Bun-only APIs in app code** (`Bun.serve`, `Bun.file`, `bun:sqlite`,
   the `$` shell, `Bun.password`, ...). The app must stay portable to Node-based
@@ -77,13 +76,10 @@ vibecoding: describing what they want in plain language. Because of that:
 - CI and deploys install with `bun install --frozen-lockfile`.
   `.github/workflows/ci.yml` runs the completion checklist on every push;
   `.github/dependabot.yml` opens one grouped dependency-update PR a week.
-- **Temporary pin — keep it:** `package.json` has `"overrides": { "bson": "7.2.0" }`
-  because bson ≥ 7.3 crashes on Bun ≤ 1.3.14 at import time
-  (`node:v8 isBuildingSnapshot is not yet implemented`, fixed in Bun 1.4).
-  Vercel's build image still ships Bun 1.3.14, so removing the pin breaks the
-  Vercel build even though newer local Bun works. Remove it only once Vercel
-  builds with Bun ≥ 1.4 (check the "bun install v..." line in a build log), and
-  confirm with `bun -e "await import('mongoose')"`.
+- **Bun must be 1.4 or newer everywhere.** Older Bun (≤ 1.3.14) crashes when
+  Mongoose loads bson (`node:v8 isBuildingSnapshot is not yet implemented`).
+  `vercel.json` sets `"bunVersion": "1.4.x"` so Vercel installs, builds and runs
+  with Bun 1.4; CI uses the latest Bun. Never pin bson to work around old Bun.
 
 ## Project structure — where things go
 

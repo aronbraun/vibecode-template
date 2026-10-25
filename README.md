@@ -82,31 +82,23 @@ pull request a week with dependency updates.
 Set `MONGODB_URI` on every deployed environment — without it each serverless
 instance spins up its own empty throwaway database.
 
-There is deliberately **no platform config** in this repo — it's a standard
-Next.js project, so platforms auto-detect everything, including Bun via
-`bun.lock`.
+This is a standard Next.js project, so platforms auto-detect everything,
+including Bun via `bun.lock`. The only platform file is `vercel.json`, which
+tells Vercel to use Bun 1.4 (older Bun crashes when loading Mongoose).
 
 ### Vercel
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/aronbraun/vibecode-template&env=MONGODB_URI)
 
 Or push your copy to GitHub and import it at [vercel.com/new](https://vercel.com/new).
-Functions run on Node.js by default; to opt into Vercel's Bun runtime (public
-beta), add a `vercel.json` with `{ "bunVersion": "1.x" }`.
+`vercel.json` makes Vercel install, build and run the app with Bun 1.4 (Vercel's
+Bun runtime is in public beta).
 
 ### Railway
 
 Create a project at [railway.com/new](https://railway.com/new) and deploy from
 your repo — Railway detects Bun and runs the standard scripts. Add a MongoDB
 service (or use Atlas) and set `MONGODB_URI`.
-
-## Known temporary pin
-
-`package.json` pins the transitive `bson` package to `7.2.0` (via `overrides`):
-newer bson versions crash on Bun ≤ 1.3.14 when imported
-([oven-sh/bun#32501](https://github.com/oven-sh/bun/issues/32501), fixed in
-Bun 1.4). Vercel's build image still uses Bun 1.3.14, so keep the pin until a
-Vercel build log shows Bun 1.4 or newer.
 
 ## Project structure
 
