@@ -1,4 +1,5 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
@@ -18,7 +19,12 @@ into real features fast. The stack:
 - **Bun** — package manager AND runtime (scripts run `bun --bun next ...`)
 - **tRPC v11 + Zod 4** — the ONLY way this app exposes an API
 - **Mongoose 9 / MongoDB** — with an automatic in-memory database when `MONGODB_URI` is unset
-- **Tailwind CSS v4 + shadcn/ui** — styling and UI components
+- **Tailwind CSS v4 + shadcn/ui** — styling and UI components, light/dark theme
+- **nuqs** — state that belongs in the URL (search, filters, page, tabs)
+- **react-hook-form + Zod + shadcn `Field`** — forms, sharing one schema with the API
+- **Cache Components + React Compiler** — on by default in `next.config.ts`, see Speed
+- **Prettier, GitHub Actions CI, Dependabot** — formatting, checks on every push,
+  weekly dependency updates
 - **Serverless-ready** — a standard Next.js repo with no platform config on
   purpose: Vercel and Railway auto-detect the framework and Bun (via `bun.lock`)
 
@@ -58,7 +64,7 @@ vibecoding: describing what they want in plain language. Because of that:
 ## Bun — runtime & package manager
 
 - Use Bun for everything: `bun install` / `bun add` / `bun remove`, and
-  `bun run dev|build|start|lint|typecheck`. `bun.lock` is committed — keep it.
+  `bun run dev|build|start|lint|typecheck|fmt`. `bun.lock` is committed — keep it.
 - The scripts use `bun --bun next ...` so Next.js executes on the Bun runtime
   locally and on any host that runs the package.json scripts (Railway, Docker,
   a VPS). Vercel runs functions on Node.js by default — fine, the code must
@@ -69,25 +75,24 @@ vibecoding: describing what they want in plain language. Because of that:
   the `$` shell, `Bun.password`, ...). The app must stay portable to Node-based
   serverless platforms. Stick to Web-standard and Node APIs.
 - CI and deploys install with `bun install --frozen-lockfile`.
-- **Temporary pin:** `package.json` has `"overrides": { "bson": "7.2.0" }` because
-  bson ≥ 7.3 crashes on Bun ≤ 1.3.14 at import time
-  (`node:v8 isBuildingSnapshot is not yet implemented` — fixed upstream in
-  oven-sh/bun#32501, not yet in a Bun release). Once a newer Bun ships, remove
-  the override and this bullet, and confirm with
-  `bun -e "await import('mongoose')"` that it still loads.
+  `.github/workflows/ci.yml` runs the completion checklist on every push;
+  `.github/dependabot.yml` opens one grouped dependency-update PR a week.
 
 ## Project structure — where things go
 
 ```
 src/
   app/                    Pages & layouts (App Router). One folder per route.
+    layout.tsx            Root layout: fonts, header (app name + ThemePicker), Toaster.
+    providers.tsx         All client providers (theme, progress bar, tRPC, nuqs).
+    loading.tsx           Skeleton shown while a page's server data loads.
     api/trpc/[trpc]/      The single tRPC HTTP handler — don't add routes here.
     globals.css           Tailwind v4 theme (CSS variables) — the only theme file.
   server/                 Server-only code. Never import from client components.
     db.ts                 Mongoose connection (+ automatic in-memory fallback).
     models/<name>.ts      One Mongoose model per file (copy note.ts).
   trpc/
-    init.ts               tRPC setup, context, publicProcedure.
+    init.ts               tRPC setup, context, publicProcedure, error translation.
     routers/<domain>.ts   One router per domain (copy notes.ts) ...
     routers/_app.ts       ... merged here. Never define procedures inline here.
     client.tsx            "use client" provider + useTRPC hook.
@@ -95,7 +100,15 @@ src/
     query-client.ts       TanStack Query defaults.
   components/             Shared React components (presentational, typed props).
     ui/                   shadcn components — managed by the CLI, see UI rules.
-  lib/utils.ts            The shared util file (cn helper lives here).
+    link.tsx              Use for every in-app link (instant navigation, data-active).
+    theme-picker.tsx      Light / Dark / System dropdown.
+    table-skeleton.tsx    Placeholder table while table data loads.
+  lib/
+    env.ts                Validated environment variables — read `env.X`, never process.env.
+    site.ts               App name and description (used by metadata and the header).
+    schemas/<domain>.ts   Zod schemas shared by a form and its tRPC procedure.
+    utils.ts              The shared util file (cn helper lives here).
+.github/                  CI workflow and Dependabot config.
 ```
 
 ## Database — Mongoose + MongoDB
@@ -145,12 +158,63 @@ src/
   and invalidate with `queryClient.invalidateQueries(trpc.x.y.queryFilter())`.
   Always render loading, empty, and error states.
 - Server components may prefetch via `src/trpc/server.tsx` (`prefetch` +
-  `HydrateClient`) — but prefetching runs the query (and touches the database)
-  during rendering, so only do it in dynamically rendered pages, never in
-  statically prerendered ones (it would hit the database at build time).
+  `HydrateClient`). Prefetching reads request headers and runs the query while
+  rendering, so the component doing it must sit inside a `<Suspense>` boundary
+  (see Speed) — never in the static shell.
 - Errors: log the real cause with `console.error`, then throw a `TRPCError`
   whose message is clear, simple, and safe for the end user. Never leak stack
-  traces, driver errors, or internals to the client.
+  traces, driver errors, or internals to the client. `publicProcedure` already
+  turns Mongoose errors (validation, bad id, duplicate) into safe messages, and
+  Zod input errors reach the client as `error.data.fieldErrors` per field.
+
+## Speed — Cache Components, prefetching, React Compiler
+
+`next.config.ts` turns on `cacheComponents`, `partialPrefetching` and
+`reactCompiler`. They make pages load and navigate instantly, and they come with
+rules:
+
+- **Dynamic data must sit inside `<Suspense>`.** Anything that reads the request
+  (`headers()`, `cookies()`, `searchParams`, a tRPC prefetch, `useSearchParams` /
+  nuqs in a client component) goes in a component wrapped in
+  `<Suspense fallback={<Skeleton ... />}>`. The rest of the page is the static
+  shell and is served instantly. `next dev` and `next build` tell you when a
+  boundary is missing — fix it, don't add `instant = false`.
+- **Data that may be cached** (public, same for every user) can use `"use cache"`
+  with `cacheLife(...)`; read the Next.js docs in `node_modules/next/dist/docs/`
+  first. Never cache per-user data.
+- **No route segment configs** (`export const dynamic/revalidate/fetchCache`):
+  Cache Components replaces them.
+- **Never show a blank screen while loading.** Every list/table shows a skeleton
+  (`Skeleton`, `TableSkeleton`) and every route can have a `loading.tsx`.
+- **Links:** use `Link` from `@/components/link` for every in-app link. Next.js
+  prefetches links in view and on hover; the wrapper also navigates on mouse
+  down and sets `data-active` on the current page's link. Never use `<a>` for
+  internal navigation.
+- **Pages stay mounted when navigating away** (React `<Activity>`), so state like
+  an open dropdown survives a back navigation. Close transient UI on
+  unmount/hide, or key it to the URL — see the Next.js "preserving UI state"
+  guide.
+- **Don't write `useMemo` / `useCallback` / `React.memo`** for performance. The
+  React Compiler does it. Write plain components.
+
+## State — where app state lives
+
+- **Server data** → TanStack Query through tRPC (`useQuery` / `useMutation`).
+  Never copy it into `useState`.
+- **Anything a user would want to keep on reload, share, or go back to**
+  (search text, filters, sort, page number, active tab, selected id) → the URL
+  via nuqs: `useQueryState("q", parseAsString.withDefault(""))`, or
+  `useQueryStates` for several values. Debounce the _value_ before passing it
+  to a query (`useDebounceValue` from `usehooks-ts`), not the URL update.
+- **Form state** → `react-hook-form` with `zodResolver` and the shadcn `Field`
+  components (`Controller` → `Field` → `FieldLabel` + `Input` + `FieldError`).
+  The Zod schema lives in `src/lib/schemas/<domain>.ts` and the tRPC procedure
+  uses the SAME schema in `.input(...)`. See `notes-demo.tsx`.
+- **Everything else** → local `useState`. There is no global store (no Redux,
+  Zustand, Jotai): don't add one.
+- **Small reusable hooks** (debounce, media query, local storage, copy to
+  clipboard, click outside, ...) come from `usehooks-ts` — check it before
+  writing a hook.
 
 ## UI — Tailwind v4 + shadcn/ui
 
@@ -170,6 +234,9 @@ src/
 - **When a design IS provided** (image, Figma, detailed spec): match it exactly —
   spacing, sizes, colors, typography — using shadcn primitives underneath where
   they help.
+- **Feedback:** `toast.success(...)` / `toast.error(...)` from `sonner` after a
+  mutation (the `Toaster` is already in the layout). Light/dark theme comes from
+  `next-themes`; use theme tokens and it works in both.
 - **Check what already exists before creating a component.** Reuse or extend
   `src/components` first. Anything plausibly used more than once (a card, badge,
   dialog, empty state, banner) becomes a reusable component with clear typed
@@ -182,6 +249,7 @@ Apply these WHILE writing code, not after. Every new procedure, page, and fix
 must comply from the first draft.
 
 ### Authentication & authorization (the moment the app has users)
+
 - Every procedure that touches user data verifies the authenticated user —
   never rely on middleware alone.
 - Every query that reads or modifies user data includes a userId/ownership
@@ -193,6 +261,7 @@ must comply from the first draft.
 - Hash passwords/PINs with bcrypt or Argon2 — never SHA-256 or plaintext.
 
 ### Input validation & injection
+
 - Zod on every input (see API rules). Validate file uploads: size limit + MIME
   allowlist. Sanitize user-supplied filenames before storing or reflecting them.
 - Only Mongoose typed methods / parameterized queries — never build a query by
@@ -200,17 +269,22 @@ must comply from the first draft.
   with user content, never pass user input to shell commands.
 
 ### Secrets & environment
+
 - Never hardcode API keys, connection strings, or signing secrets. Server
   secrets never get a `NEXT_PUBLIC_` prefix and are never passed as props to
   client components.
 - `.env` is gitignored; only `.env.example` (placeholders + comments) is
   committed. Update `.env.example` with every new variable.
+- **Every env variable is declared in `src/lib/env.ts`** (server vs client) and
+  read as `env.X`. Never read `process.env.X` in app code: the build then fails
+  fast when a variable is missing instead of breaking at runtime.
 - `import "server-only"` on every module with sensitive logic (db and models
   already do this — keep it up).
 - Separate keys for dev vs production. If a key may have leaked: revoke it,
   rotate, update envs, audit usage.
 
 ### API security & data exposure
+
 - Rate limit public-facing and sensitive endpoints.
 - Generic error messages to clients; detail only in server logs.
 - Strip sensitive fields (password hashes, tokens, internal ids) from every
@@ -219,6 +293,7 @@ must comply from the first draft.
   block private/internal IP ranges (127.x, 10.x, 169.254.x, 172.16.x, 192.168.x).
 
 ### Headers, database, dependencies
+
 - Security headers are set centrally in `next.config.ts` (X-Frame-Options DENY,
   nosniff, HSTS, Referrer-Policy, Permissions-Policy). Keep them. Add a
   nonce-based Content-Security-Policy (see the Next.js CSP guide) when the app
@@ -231,22 +306,26 @@ must comply from the first draft.
 ## Code quality — mandatory
 
 ### Code must be extremely easy for humans to read
+
 - Optimize first for human readability and simplicity, not cleverness.
 - Prefer the shortest code possible — but when shorter means more complex,
   choose the longer version that is easier to read.
 
 ### Naming must be extremely simple and clear
+
 - Name everything as simply as possible — even if longer — for clarity.
 - Call a thing by what it actually does, not its "professional" name. Prefer
   plain English over technical names when the plain words are clearer.
 
 ### Never repeat yourself (DRY)
+
 - The same fields, logic, or shape in more than one place → factor out a single
   source of truth (one Zod base schema, one shared function, one component).
 - A rule that applies project-wide (e.g. an access check) lives in ONE reusable
   function that everything calls — never inline a second copy.
 
 ### Do not create extra files for small things
+
 - A one-purpose helper used in one place belongs IN the file that uses it, not
   in its own file. No proxy/pass-through functions whose body just forwards the
   same arguments — inline the call.
@@ -257,6 +336,7 @@ must comply from the first draft.
   things, split it then. Aim for the simplest layout a human can follow.
 
 ### Always log — at a standard level, never overkill
+
 - Server code logs with `console.info` / `console.warn` / `console.error`
   (serverless platforms capture these). Don't add a logging library and don't
   invent a logger; no leftover `console.log` debugging.
@@ -271,10 +351,11 @@ must comply from the first draft.
 
 1. `bun run typecheck` — clean
 2. `bun run lint` — clean
-3. `bun run build` — succeeds
-4. Security review of the new code against the rules above (input validation,
+3. `bun run fmt` — then commit the formatted files (CI runs `fmt:check`)
+4. `bun run build` — succeeds (it also reports missing `<Suspense>` boundaries)
+5. Security review of the new code against the rules above (input validation,
    ownership filters, minimal data exposure, no secrets in client code)
-5. `.env.example` and README updated if env vars or behavior changed
+6. `.env.example` and README updated if env vars or behavior changed
 
 This is not a finishing step — it is part of the implementation.
 

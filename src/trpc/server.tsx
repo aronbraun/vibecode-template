@@ -7,6 +7,7 @@ import {
 } from "@trpc/tanstack-react-query";
 import { headers } from "next/headers";
 import { cache } from "react";
+
 import { createTRPCContext } from "@/trpc/init";
 import { makeQueryClient } from "@/trpc/query-client";
 import { appRouter } from "@/trpc/routers/_app";
@@ -15,8 +16,9 @@ import { appRouter } from "@/trpc/routers/_app";
 export const getQueryClient = cache(makeQueryClient);
 
 // Call procedures from server components, e.g. prefetch(trpc.notes.list.queryOptions()).
-// Prefetching runs the query (and touches the database) during rendering — pages that
-// do it must render dynamically, not be statically prerendered at build time.
+// Prefetching reads the request headers and runs the query during rendering, so
+// the component that does it must sit inside a <Suspense> boundary (Cache
+// Components rule): the static shell is sent first and this part streams in.
 export const trpc = createTRPCOptionsProxy({
   ctx: async () => createTRPCContext({ headers: await headers() }),
   router: appRouter,

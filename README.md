@@ -7,14 +7,21 @@ no env vars needed to start.
 
 ## Stack
 
-| Piece | What it does |
-| --- | --- |
-| [Next.js 16](https://nextjs.org) (App Router) + React 19 | The app — pages, layouts, server components |
-| [Bun](https://bun.com) | Package manager **and** runtime (`bun --bun next ...`) |
-| [tRPC v11](https://trpc.io) + [Zod 4](https://zod.dev) | End-to-end typesafe API with validated inputs |
-| [Mongoose 9](https://mongoosejs.com) / MongoDB | Database — with an automatic **in-memory fallback** |
-| [Tailwind v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) | Styling and UI components |
-| [Context7 MCP](https://context7.com) | Preconfigured in `.mcp.json` so agents fetch current library docs |
+| Piece                                                                       | What it does                                                       |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [Next.js 16](https://nextjs.org) (App Router) + React 19                    | The app — pages, layouts, server components                        |
+| [Bun](https://bun.com)                                                      | Package manager **and** runtime (`bun --bun next ...`)             |
+| [tRPC v11](https://trpc.io) + [Zod 4](https://zod.dev)                      | End-to-end typesafe API with validated inputs                      |
+| [Mongoose 9](https://mongoosejs.com) / MongoDB                              | Database — with an automatic **in-memory fallback**                |
+| [Tailwind v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) | Styling and UI components, light/dark/system theme                 |
+| [nuqs](https://nuqs.dev)                                                    | Search, filters and pages live in the URL (reload/back/share safe) |
+| [react-hook-form](https://react-hook-form.com) + Zod                        | Forms that share their validation schema with the API              |
+| [Context7 MCP](https://context7.com)                                        | Preconfigured in `.mcp.json` so agents fetch current library docs  |
+
+Built for speed out of the box: Next.js **Cache Components** (static shell
+served instantly, dynamic parts stream in), **partial prefetching**, the
+**React Compiler**, streaming tRPC responses, a navigation progress bar, and
+skeleton loading states.
 
 ## Quick start
 
@@ -33,7 +40,8 @@ minute; after that it's instant.
 
 When you start building the real app, delete the demo:
 `src/components/notes-demo.tsx`, `src/trpc/routers/notes.ts`,
-`src/server/models/note.ts` (and their usages in `page.tsx` / `_app.ts`).
+`src/lib/schemas/note.ts`, `src/server/models/note.ts` (and their usages in
+`page.tsx` / `_app.ts`).
 
 ## Environment
 
@@ -55,13 +63,19 @@ cp .env.example .env
 
 ## Scripts
 
-| Command | What it does |
-| --- | --- |
-| `bun run dev` | Dev server on the Bun runtime (Turbopack) |
-| `bun run build` | Production build |
-| `bun run start` | Serve the production build |
-| `bun run lint` | ESLint |
-| `bun run typecheck` | TypeScript check (`tsc --noEmit`) |
+| Command             | What it does                              |
+| ------------------- | ----------------------------------------- |
+| `bun run dev`       | Dev server on the Bun runtime (Turbopack) |
+| `bun run build`     | Production build                          |
+| `bun run start`     | Serve the production build                |
+| `bun run lint`      | ESLint                                    |
+| `bun run typecheck` | TypeScript check (`tsc --noEmit`)         |
+| `bun run fmt`       | Format all files with Prettier            |
+| `bun run fmt:check` | Fail if any file is not formatted (CI)    |
+
+GitHub Actions (`.github/workflows/ci.yml`) runs typecheck, lint, format check
+and build on every push. Dependabot (`.github/dependabot.yml`) opens one grouped
+pull request a week with dependency updates.
 
 ## Deploy
 
@@ -86,18 +100,13 @@ Create a project at [railway.com/new](https://railway.com/new) and deploy from
 your repo — Railway detects Bun and runs the standard scripts. Add a MongoDB
 service (or use Atlas) and set `MONGODB_URI`.
 
-## Known temporary pin
-
-`package.json` pins the transitive `bson` package to `7.2.0` (via `overrides`):
-newer bson versions crash on Bun ≤ 1.3.14 when imported
-([oven-sh/bun#32501](https://github.com/oven-sh/bun/issues/32501), already fixed
-upstream but not yet released). Remove the override once you're on a newer Bun.
-
 ## Project structure
 
 ```
 src/
   app/                    Pages & layouts (App Router)
+    providers.tsx         Theme, progress bar, tRPC and nuqs providers
+    loading.tsx           Skeleton shown while a page loads
     api/trpc/[trpc]/      The single tRPC HTTP handler
     globals.css           Tailwind v4 theme (CSS variables)
   server/
@@ -109,7 +118,14 @@ src/
     client.tsx            Client provider + useTRPC hook
     server.tsx            Server-component helpers (prefetch, HydrateClient)
   components/             Shared components (components/ui is shadcn-managed)
-  lib/utils.ts            Shared utils (cn helper)
+    link.tsx              In-app link with instant navigation
+    theme-picker.tsx      Light / Dark / System picker
+    table-skeleton.tsx    Loading placeholder for tables
+  lib/
+    env.ts                Validated environment variables
+    site.ts               App name and description
+    schemas/              Zod schemas shared by forms and the API
+    utils.ts              Shared utils (cn helper)
 ```
 
 ## For AI agents

@@ -1,4 +1,5 @@
 import "server-only";
+
 import { model, models, Schema, type Model } from "mongoose";
 
 // Example model — copy this file's shape for every new collection.

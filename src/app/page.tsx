@@ -1,4 +1,8 @@
+import { Suspense } from "react";
+
 import { NotesDemo } from "@/components/notes-demo";
+import { Skeleton } from "@/components/ui/skeleton";
+import { siteConfig } from "@/lib/site";
 
 const stack = [
   "Next.js 16",
@@ -16,14 +20,14 @@ export default function Home() {
     <main className="flex flex-1 flex-col items-center justify-center gap-10 px-6 py-16">
       <div className="flex max-w-xl flex-col items-center gap-4 text-center">
         <h1 className="text-4xl font-semibold tracking-tight">
-          Vibecode Template
+          {siteConfig.name}
         </h1>
         <p className="text-lg text-muted-foreground">
           A full-stack TypeScript starter. Edit{" "}
           <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">
             src/app/page.tsx
           </code>{" "}
-          to begin — AGENTS.md tells your coding agent how to work here.
+          to begin. AGENTS.md tells your coding agent how to work here.
         </p>
         <ul className="flex flex-wrap justify-center gap-2">
           {stack.map((item) => (
@@ -36,7 +40,10 @@ export default function Home() {
           ))}
         </ul>
       </div>
-      <NotesDemo />
+      {/* NotesDemo reads the URL (?q=...), so it needs a Suspense boundary. */}
+      <Suspense fallback={<Skeleton className="h-96 w-full max-w-2xl" />}>
+        <NotesDemo />
+      </Suspense>
     </main>
   );
 }

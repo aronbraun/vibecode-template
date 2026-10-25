@@ -1,0 +1,15 @@
+# Dependabot opens one pull request a week with all dependency updates grouped
+# together. Merge it after CI is green to stay on the latest versions.
+version: 2
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      all-dependencies:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

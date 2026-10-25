@@ -1,5 +1,8 @@
 import "server-only";
+
 import mongoose from "mongoose";
+
+import { env } from "@/lib/env";
 
 // The connection promise is cached on globalThis so Next.js hot reloads and
 // serverless warm starts reuse one connection instead of opening new ones.
@@ -8,7 +11,7 @@ const globalForDb = globalThis as unknown as {
 };
 
 async function connect(): Promise<typeof mongoose> {
-  const uri = process.env.MONGODB_URI;
+  const uri = env.MONGODB_URI;
   if (uri) {
     console.info("Connecting to MongoDB from MONGODB_URI");
     return mongoose.connect(uri);
